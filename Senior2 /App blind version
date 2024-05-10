@@ -1,0 +1,591 @@
+
+import 
+'package:firebase_core/firebase_core.dart'; 
+import 'package:flutter/material.dart'; import 
+'package:floating_bottom_navigation_bar/floating_bottom_navigation_bar.dart
+'; 
+import 'package:firebase_auth/firebase_auth.dart'; 
+import 
+'package:cloud_firestore/cloud_firestore.dart'; 
+import '../HelpSupportPage.dart'; import 
+'../LoginPage.dart'; import 
+'../Widget/AppTheme.dart'; import 'BlindChat.dart'; 
+import 'BlindHome.dart'; // A simplified home page for blind users 
+import 'BlindMaps.dart'; 
+import 'UserProfilePage.dart'; // Ensure this page is accessible 
+class BasirahBlindVersion extends StatefulWidget { 
+ @override 
+ _BasirahBlindVersionState createState() => _BasirahBlindVersionState(); 
+} 
+class _BasirahBlindVersionState extends State<BasirahBlindVersion> 
+{ int _bottomNavIndex = 0; // Keep track of the active tab late 
+List<Widget> _pages; // Declare pages list here 
+ bool _isLoading = true; // State to show loading indicator while fetching 
+data 
+ @override void 
+initState() { 
+super.initState(); 
+_fetchUserProfile(); 
+ } 
+ Future<void> _fetchUserProfile() async { 
+ User? user = FirebaseAuth.instance.currentUser; 
+if (user != null) { 
+ String authUID = user.uid; 
+try { 
+ // Fetch the document for the current user 
+ DocumentSnapshot userDoc = await 
+FirebaseFirestore.instance.collection('users') 
+ .where('authUID', isEqualTo: authUID) 
+ .limit(1) 
+ .get() 
+ .then((snapshot) => snapshot.docs.first); 
+ String uniqueUserId = userDoc['uniqueId']; 
+ // Initialize the pages once the unique user ID is fetched 
+ _pages = [ 
+ BlindHomePage(), 
+ BlindMapsScreen(), 
+ BlindChat(), 
+ UserProfilePage(uniqueUserId: uniqueUserId), // Ensure 
+accessibility 
+ ]; 
+ } catch (e) { 
+97
+print('Error fetching user profile: $e');
+
+// Handle any errors here 
+ } 
+ setState(() => _isLoading = false); // Data fetched, update the 
+loading state 
+ } else { 
+ // No user is logged in, navigate to the login page 
+ Navigator.of(context).pushReplacement(MaterialPageRoute(builder: 
+(context) => LoginPage())); 
+ } 
+ } 
+ @override 
+ Widget build(BuildContext context) { 
+ // If still loading the user profile, show a progress 
+indicator if (_isLoading) { return Scaffold( 
+ body: Center(child: CircularProgressIndicator()), 
+ ); 
+ } 
+ // Once data is fetched, show the Scaffold with pages and navigation 
+bar 
+ return Scaffold( 
+ body: _pages[_bottomNavIndex], 
+bottomNavigationBar: FloatingNavbar( 
+ onTap: (int val) => setState(() => _bottomNavIndex = val), 
+currentIndex: _bottomNavIndex, 
+ items: [ 
+ FloatingNavbarItem(icon: Icons.home, title: 'Home'), 
+FloatingNavbarItem(icon: Icons.map, title: 'Map'), 
+ FloatingNavbarItem(icon: Icons.chat, title: 'Chat'), 
+ FloatingNavbarItem(icon: Icons.person, title: 'Profile'), 
+ ], 
+ backgroundColor: Colors.blue, 
+ selectedItemColor: AppTheme.themeData.colorScheme.secondary, 
+unselectedItemColor: Colors.grey.shade300, 
+ ), 
+ ); 
+ } 
+} 
+import 
+'package:firebase_auth/firebase_auth.dart'; 
+import 'package:flutter/material.dart'; import 
+'package:intl/intl.dart'; 
+import 'package:speech_to_text/speech_to_text.dart' as 
+stt; import 'package:flutter_tts/flutter_tts.dart'; import 
+'../LoginPage.dart'; 
+class BlindHomePage extends StatefulWidget 
+{ @override 
+ _BlindHomePageState createState() => _BlindHomePageState(); 
+} 
+class _BlindHomePageState extends State<BlindHomePage> { 
+stt.SpeechToText _speechToText = stt.SpeechToText(); 
+ FlutterTts _flutterTts = FlutterTts(); 
+bool _isListening = false; 
+ String _spokenText = "Say something..."; // Placeholder text for user's 
+speech 
+ String _responseText = ""; // Placeholder for AI's response 
+99
+ @override void 
+initState() { 
+super.initState(); 
+ _speechToText.initialize(); _flutterTts.setLanguage("enUS"); 
+ } 
+ void _logout() async { 
+ await FirebaseAuth.instance.signOut(); 
+Navigator.of(context).pushReplacement( 
+ MaterialPageRoute(builder: (context) => LoginPage())); 
+ } void _listen() 
+async { if 
+(!_isListening) { 
+ bool available = await _speechToText.initialize( 
+onStatus: (val) => print('onStatus: $val'), 
+onError: (val) => print('onError: $val'), 
+ ); 
+ if (available) { 
+setState(() { 
+ _isListening = true; 
+ _spokenText = "Listening..."; 
+ }); 
+ _speechToText.listen( 
+onResult: (val) => 
+setState(() { 
+ _spokenText = val.recognizedWords; // Update spoken text 
+ _handleCommand(val.recognizedWords); 
+ _isListening = false; 
+ }), 
+ ); 
+ } } else 
+{ 
+setState(() { 
+ _isListening = false; 
+ _speechToText.stop(); 
+ }); 
+ } 
+ } 
+ void _handleCommand(String command) { 
+ String lowerCaseCommand = command.toLowerCase(); 
+ String response; 
+ // Common inquiries and assistance 
+ if (lowerCaseCommand.contains("how are you")) { 
+ response = "I'm Basirah Ai here to help you. How can I assist you 
+today?"; 
+ } else if (lowerCaseCommand.contains("what is your name")) { 
+response = 
+ "I am Basirah AI assistant, here to make your day easier and safer.";
+ } else if (lowerCaseCommand.contains("tell me a joke")) { 
+response = 
+ "What did one elevator say to the other elevator? I think I'm coming 
+down with something!"; 
+ } else if (lowerCaseCommand.contains("what time is it")) { 
+DateTime now = DateTime.now(); 
+ response = "The current time is ${now.hour}:${now.minute}."; 
+ } else if (lowerCaseCommand.contains("what day is it")) {
+100
+DateTime now = DateTime.now(); 
+response ="Today is ${DateFormat('EEEE').format(now)}, the ${now.day}th."; 
+ } else if (lowerCaseCommand.contains("thank you")) { 
+ response = "You're welcome! If you need more assistance, just ask."; 
+ // Navigation and mobility 
+ } else if (lowerCaseCommand.contains("help me cross the road")) { 
+response = 
+ "Please wait for the tactile paving to vibrate or for the audible 
+signals before crossing. Would you like me to alert someone to assist 
+you?"; 
+ } else if (lowerCaseCommand.contains("read text")) { 
+response = 
+ "Let's use the text recognition feature. Please hold the text in 
+front of the camera."; 
+ } else if (lowerCaseCommand.contains("find my way home")) { 
+response = 
+ "Let's activate GPS navigation to guide you home safely. Please 
+follow my voice instructions."; 
+ } else if (lowerCaseCommand.contains("where am i")) { 
+response = 
+ "You're currently at [location]. Do you need directions to a specific 
+place?"; 
+ // Daily life assistance 
+ } else if (lowerCaseCommand.contains("identify object")) { 
+response = 
+ "Please point the camera towards the object you want to identify."; 
+} else if (lowerCaseCommand.contains("describe surroundings")) { 
+response = 
+ "I will describe what's in front of you. Please hold your phone up to 
+scan the area."; 
+ // Emotional support and encouragement 
+ } else if (lowerCaseCommand.contains("motivate me")) { 
+response = 
+ "Every step forward is a step towards achieving something bigger. 
+Your courage is inspiring!"; 
+ } else if (lowerCaseCommand.contains("call a friend")) { 
+ response = "Who would you like to call? I can dial the number for 
+you."; 
+ // Additional support 
+ } else if (lowerCaseCommand.contains("emergency help")) { 
+response = 
+ "I'm contacting emergency services and sending them your location. 
+Stay where you are, help is on the way."; 
+ } else if (lowerCaseCommand.contains("navigate to")) { 
+ // Extract the destination from the command 
+ final destination = lowerCaseCommand.replaceFirst("navigate to", "") 
+ .trim(); 
+ response = "Navigating to $destination. Please follow my voice 
+guidance."; 
+ } else if (lowerCaseCommand.contains("describe current location")) { 
+response = 
+ "You are at the corner of 5th Avenue and Main Street. There's a 
+coffee shop to your right and a library across the street."; 
+ } else if (lowerCaseCommand.contains("what's the weather like")) { 
+ // Assuming integration with a weather API 
+102
+ response = 
+"It's currently sunny and 75 degrees. There's a slight breeze coming 
+from the west."; 
+ } else if (lowerCaseCommand.contains("add reminder")) { 
+ // This would require storing the reminder and handling notifications 
+final reminder = lowerCaseCommand.replaceFirst("add reminder", 
+"").trim(); 
+ response = "Reminder added: $reminder. I'll notify you."; 
+} else if (lowerCaseCommand.contains("play music")) { 
+response = 
+ "Playing your music playlist now. Let me know if you want to skip a 
+song or change the volume."; 
+ } else if (lowerCaseCommand.contains("where's my phone")) { 
+// This could trigger a sound on the user's phone if it's nearby 
+response = "I'm here! Follow my sound to find me."; 
+ } else if (lowerCaseCommand.contains("read latest news")) { 
+ // Assuming integration with a news API 
+ response = "Here's the latest news: [Brief summary of top news 
+stories]."; 
+ } else if (lowerCaseCommand.contains("how do I look")) { 
+// Assuming integration with image recognition or AI analysis 
+response = 
+ "You look great! Your outfit matches perfectly, and you're all set for 
+the day."; 
+ } else if (lowerCaseCommand.contains("open")) { 
+ final app = lowerCaseCommand.replaceFirst("open", "").trim(); 
+response = "Opening $app for you now."; 
+ } else if (lowerCaseCommand.contains("send message to")) { 
+ // This would require access to contacts and the ability to send 
+messages 
+ final contact = lowerCaseCommand.replaceFirst("send message to", "") 
+ .trim(); 
+ response = "What message would you like to send to 
+$contact?"; } else if (lowerCaseCommand.contains("how crowded 
+is")) { final place = lowerCaseCommand.replaceFirst("how 
+crowded is", "").trim(); 
+ // Assuming access to crowd data or integration with a service 
+response = 
+ "$place is currently moderately crowded. Would you like to know the 
+best time to visit?"; 
+ } else if (lowerCaseCommand.contains("emergency")) { 
+response = 
+ "Activating emergency protocol. Alerting your contacts and sharing 
+your location with emergency services."; 
+ } 
+ else if (lowerCaseCommand.contains("who's around me")) { 
+response = 
+ "Scanning... I detect two people nearby. Would you like to greet 
+them?"; 
+ } else if (lowerCaseCommand.contains("update my social status")) 
+{ final status = lowerCaseCommand.replaceFirst( 
+"update my social status to", "").trim(); response = 
+ "Updating your social status to: '$status'. It's now shared with your 
+friends."; 
+ // Environmental Awareness 
+ } else if (lowerCaseCommand.contains("describe the room")) { 
+response = 
+ "You're in a spacious and well-lit room with a couch to your left and 
+a table in front of you."; 
+} else if (lowerCaseCommand.contains("any obstacles ahead")) { 
+response = 
+ "There's a small step two meters ahead. Please be cautious and useyour cane."; 
+ // Personal Care 
+ } else if (lowerCaseCommand.contains("remind me to drink water")) { 
+response = "Setting a water-drinking reminder for every two hours."; } 
+else if (lowerCaseCommand.contains("when is my next appointment")) { 
+ // Assuming integration with a calendar API 
+ response = "Your next appointment is with Dr. Smith at 3 PM 
+tomorrow."; 
+ // Navigation Enhancements 
+ } else if (lowerCaseCommand.contains("quiet places nearby")) { 
+response = 
+ "Found a quiet park three blocks away. Would you like directions?"; 
+ } else if (lowerCaseCommand.contains("locate my keys")) 
+{ // Assuming integration with a Bluetooth tracker 
+response = "Your keys are in the kitchen drawer."; 
+ // Entertainment and Leisure 
+ } else if (lowerCaseCommand.contains("suggest a book")) { 
+response = 
+ "Based on your reading history, I recommend 'The Alchemist' by Paulo 
+Coelho. Would you like me to start the audiobook?"; } 
+else if (lowerCaseCommand.contains("play a game")) { 
+response = 
+ "Starting a voice-guided trivia game. Get ready for the first 
+question!"; 
+ // Daily Routine Assistance 
+ } else if (lowerCaseCommand.contains("what's for dinner")) { 
+response = 
+ "You have ingredients for spaghetti or a salad. Which one do you 
+prefer?"; 
+ } else if (lowerCaseCommand.contains("turn on the lights")) { 
+ // Assuming smart home integration 
+ response = "Turning on the lights. The room is now bright."; 
+ // Health and Fitness 
+ } else if (lowerCaseCommand.contains("log my exercise")) { 
+final exerciseDetails = lowerCaseCommand.replaceFirst( 
+ "log my exercise", "").trim(); 
+response = 
+ "Logging your exercise: $exerciseDetails. Great job staying active!";
+ } else if (lowerCaseCommand.contains("how's my heart rate")) { 
+// Assuming integration with health monitoring devices 
+response = 
+ "Checking... Your heart rate is 72 bpm, which is within a healthy 
+range."; 
+ // Emergency Assistance 
+ } else if (lowerCaseCommand.contains("I feel unsafe")) { 
+response = 
+ "Activating safety protocol. Sharing your location with emergency 
+contacts and authorities."; 
+ } else 
+{ 
+response = 
+ "I'm here to help. Could you please try asking in a different way?"; 
+_speak(response); 
+ } 
+ 
+ void _speak(String message) async { 
+setState(() { 
+ _responseText = message; // Update the response text 
+ }); 
+ await _flutterTts.speak(message); 
+ } 
+ @override 
+ Widget build(BuildContext context) 
+{ return Scaffold( body: 
+SafeArea( child: Container( 
+width: double.infinity, 
+padding: EdgeInsets.all(20), 
+child: Column( 
+ mainAxisAlignment: MainAxisAlignment.start, 
+children: <Widget>[ 
+ SizedBox(height: 20), 
+Center( 
+ child: Image.asset( 
+'assets/logo.png', 
+ // Ensure you have an asset path for your logo 
+height: 100, // Adjust based on your logo's aspect ratio 
+width: 100, 
+ ), 
+ ), 
+Expanded( 
+child: Center( 
+child: Column( 
+ mainAxisSize: MainAxisSize.min, 
+children: [ 
+ Text( 
+ _spokenText, 
+textAlign: TextAlign.center, 
+style: TextStyle(fontSize: 24, 
+color: Colors.blueGrey, 
+fontStyle: FontStyle.italic), ), 
+ SizedBox(height: 20), 
+ Text( 
+ _responseText, 
+textAlign: TextAlign.center, 
+style: TextStyle(fontSize: 20, 
+fontWeight: FontWeight.bold, 
+color: Color(0xFF00A1E4)), 
+ ), 
+SizedBox(height: 40), // Increased space above the 
+button 
+ ], 
+ ), 
+ ), 
+ ), 
+ ],), 
+ ), 
+ ), floatingActionButton: Padding( padding: const 
+EdgeInsets.only(bottom: 100.0),
+// Adjust the padding to move the button 
+higher child: FloatingActionButton.extended( 
+onPressed: _listen, label: Text( 
+ _isListening ? 'Listening...' : 'Talk to AI', 
+style: TextStyle(color: Colors.white, 
+ fontSize: 20), // Increased font size for the label 
+ ), 
+ icon: Icon( 
+ _isListening ? Icons.mic : Icons.mic_none, 
+color: Colors.white, 
+ size: 30, // Increased icon size 
+ ), 
+ backgroundColor: Colors.blue, 
+shape: RoundedRectangleBorder( 
+ borderRadius: BorderRadius.circular( 
+ 30.0), // Adjusted shape for a larger, more rounded button 
+ ), 
+ ), 
+), 
+ floatingActionButtonLocation: FloatingActionButtonLocation 
+ .centerDocked, // Adjusted location to centerDocked for a higher 
+position 
+ ); 
+ } 
+} 
+import 'package:flutter/material.dart'; 
+class BlindChat extends StatefulWidget { 
+ @override 
+ _BlindChatState createState() => _BlindChatState(); 
+} 
+class _BlindChatState extends State<BlindChat> 
+{ // Placeholder for messages from people 
+final List<Map<String, dynamic>> messages = [ 
+ { 
+ 'type': 'message', 
+ 'sender': 'a3', 
+ 'message': 'Be careful, there\'s construction ahead on your route.', 
+ }, 
+ { 
+ 'type': 'message', 
+ 'sender': 'a5', 
+ 'message': 'Don\'t forget your appointment at 3 PM today.', 
+ }, 
+ ]; 
+ // Placeholder for alerts from sensors 
+final List<Map<String, dynamic>> alerts = [ 
+{ 
+ 'type': 'alert', 
+ 'sender': 'Sensor Alert', 
+ 'message': 'High CO2 levels detected near you. Please ventilate the 
+area.', },{ 
+ 'type': 'alert', 
+ 'sender': 'Weather Alert', 
+ 'message': 'Severe weather warning in your area. Stay indoors.', }, 
+ ]; 
+ @override 
+ Widget build(BuildContext context) { 
+ // Combine messages and alerts for display 
+ final List<Map<String, dynamic>> combinedList = [...messages, 
+...alerts]; 
+ return Scaffold( 
+body: SafeArea( 
+child: Container( 
+ padding: 
+EdgeInsets.all(20), child: 
+Column( children: [ 
+ SizedBox(height: 20), 
+Expanded( 
+ child: ListView.builder( 
+itemCount: combinedList.length, 
+itemBuilder: (context, index) { 
+final item = combinedList[index]; 
+return Card( 
+ color: item['type'] == 'alert' ? Colors.red.shade100 
+: Colors.green.shade100, 
+ child: ListTile( 
+ title: Text(item['sender']), 
+subtitle: Text(item['message']), leading: 
+CircleAvatar( backgroundColor: Colors.white, 
+child: Icon( item['type'] == 'alert' ? 
+Icons.warning : Icons.message, color: 
+item['type'] == 'alert' ? Colors.red : 
+Colors.green, 
+ ), 
+ ), 
+ ), 
+ ); 
+ }, 
+ ), 
+ ), 
+ ], 
+ ), 
+ ), 
+ ), 
+ ); 
+ } 
+} 
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:flutter/material.dart'; 
+import 
+'package:google_maps_flutter/google_maps_flutter.dart'; 
+import 'package:location/location.dart'; import 
+'package:firebase_auth/firebase_auth.dart'; 
+import 'package:firebase_database/firebase_database.dart'; 
+class BlindMapsScreen extends StatefulWidget {final String? uniqueId; BlindMapsScreen({this.uniqueId});
+@overrideBlindMapsScreenState createState() => _BlindMapsScreenState(); 
+} 
+class _BlindMapsScreenState extends State<BlindMapsScreen> 
+{ GoogleMapController? mapController; final Location 
+location = Location(); 
+ LatLng _currentPosition = const LatLng(25.3548, 51.1839); 
+ Map<MarkerId, Marker> markers = {}; 
+ String? _uniqueId; 
+ @override void 
+initState() { 
+super.initState(); 
+ _uniqueId = widget.uniqueId ?? ''; 
+if (_uniqueId == '') { 
+fetchUniqueId().then((id) { 
+ if (id != null) setState(() => _uniqueId = id); 
+ }); 
+ } 
+ } 
+ Future<String?> fetchUniqueId() async { 
+ User? user = FirebaseAuth.instance.currentUser; 
+if (user == null) return null; 
+ // Since we expect `authUID` to match the Firebase Auth UID, we query 
+for it. 
+ QuerySnapshot querySnapshot = await FirebaseFirestore.instance 
+ .collection('users') 
+ .where('authUID', isEqualTo: user.uid) 
+ .get(); 
+ if (querySnapshot.docs.isNotEmpty) { 
+ // Assuming there's only one document per user, we take the first 
+one. 
+ Map<String, dynamic> userData = querySnapshot.docs.first.data() as 
+Map<String, dynamic>; 
+ return userData['uniqueId']; 
+ } 
+ return null; 
+ } 
+ 
+ void _onMapCreated(GoogleMapController controller) { 
+mapController = controller; 
+ _getCurrentLocation(); 
+ } 
+ void _getCurrentLocation() async { 
+if (mapController == null) return; 
+ bool _serviceEnabled; 
+ PermissionStatus _permissionGranted; 
+ LocationData _locationData; 
+ _serviceEnabled = await location.serviceEnabled(); 
+if (!_serviceEnabled) { 
+ _serviceEnabled = await location.requestService(); 
+ if (!_serviceEnabled) return; } 
+116
+ _permissionGranted = await location.hasPermission(); if 
+(_permissionGranted == PermissionStatus.denied) { 
+_permissionGranted = await location.requestPermission(); 
+if (_permissionGranted != PermissionStatus.granted) return; 
+} 
+ _locationData = await location.getLocation(); 
+setState(() { 
+ _currentPosition = LatLng(_locationData.latitude!, 
+_locationData.longitude!); 
+ markers[MarkerId('current_location')] = Marker( 
+markerId: MarkerId('current_location'), 
+position: _currentPosition, 
+ icon: BitmapDescriptor.defaultMarker, 
+ ); 
+ mapController?.animateCamera( 
+CameraUpdate.newCameraPosition( 
+ CameraPosition(target: _currentPosition, zoom: 15.0), 
+ ), 
+ ); 
+ }); 
+ if (_uniqueId != null) { 
+ final DatabaseReference dbRef = 
+FirebaseDatabase.instance.ref("user_locations/$_uniqueId"); 
+await dbRef.set({ 
+ "latitude": _locationData.latitude, 
+ "longitude": _locationData.longitude, 
+ "timestamp": ServerValue.timestamp, 
+ }); 
+ } 
+ } 
+ @override 
+ Widget build(BuildContext context) 
+{ return Scaffold( body: 
+GoogleMap( 
+ onMapCreated: _onMapCreated, 
+initialCameraPosition: CameraPosition( 
+target: _currentPosition, zoom: 
+11.0, 
+ ), 
+ markers: Set<Marker>.of(markers.values), 
+ ), 
+ ); 
+ } 
+} 
