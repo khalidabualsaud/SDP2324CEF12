@@ -1,0 +1,593 @@
+import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'LoginPage.dart'; // Make sure this import points to your actual 
+login page. 
+class UserProfilePage extends StatefulWidget { 
+final String uniqueUserId; 
+ UserProfilePage({Key? key, required this.uniqueUserId}) : super(key: key); 
+ @override 
+ _UserProfilePageState createState() => _UserProfilePageState(); 
+} 
+class _UserProfilePageState extends State<UserProfilePage> { 
+ Future<Map<String, dynamic>?> fetchUserProfile(String uniqueUserId) async 
+{ 
+ if (uniqueUserId.isEmpty) { 
+ print("Unique User ID is empty. User might not be logged in."); 
+return null; 
+ } 
+ try { 
+ DocumentSnapshot userDoc = await FirebaseFirestore.instance 
+.collection('users') 
+ .doc(uniqueUserId) 
+ .get(); 
+ if (userDoc.exists) { 
+ return userDoc.data() as Map<String, dynamic>?; 
+ } else { 
+ print("User profile not found."); 
+return null; 
+ } 
+ } catch (e) { 
+ print("Error fetching user profile: $e"); 
+return null; 
+ } 
+ } 
+@override 
+ Widget build(BuildContext context) { 
+return Scaffold( appBar: AppBar( 
+ title: Text("User Profile"), 
+actions: <Widget>[IconButton( 
+ icon: Icon(Icons.logout), 
+onPressed: _logoutUser, 
+ ), 
+ ], 
+), 
+ body: FutureBuilder<Map<String, dynamic>?>( 
+future: fetchUserProfile(widget.uniqueUserId), 
+builder: (context, snapshot) { 
+ if (snapshot.connectionState == ConnectionState.waiting) { 
+return Center(child: CircularProgressIndicator()); 
+ } else if (snapshot.hasError) { 
+return _errorState(); } else if 
+(snapshot.hasData) { final 
+userProfile = snapshot.data!; 
+return _profileContent(userProfile); 
+ } else { 
+ return Center(child: Text("User profile is not available.")); 
+ } 
+ }, 
+ ), 
+ ); 
+ } 
+ Widget _profileContent(Map<String, dynamic> userProfile) 
+{ return SingleChildScrollView( padding: 
+EdgeInsets.all(16), child: Column( children: 
+[ 
+ ..._userInfoTiles(userProfile), 
+ ], 
+ ), 
+ ); 
+ } 
+ List<Widget> _userInfoTiles(Map<String, dynamic> userProfile) { 
+return [ 
+ _userProfileTile(Icons.person, "Name", userProfile['name']), 
+_userProfileTile(Icons.verified_user, "Unique User ID", 
+widget.uniqueUserId), 
+ _userProfileTile(Icons.calendar_today, "Date of Birth", 
+userProfile['dob']), 
+ _userProfileTile(Icons.transgender, "Gender", userProfile['gender']),
+ _userProfileTile(Icons.phone_android, "Mobile", 
+userProfile['mobile']), 
+ _userProfileTile(Icons.email, "Email", userProfile['email']), 
+ _userProfileTile(Icons.group, "User Type", userProfile['userType']), 
+ // Add more tiles as necessary 
+ ]; 
+ } 
+ Widget _userProfileTile(IconData icon, String title, String? value) 
+{ return ListTile( leading: Icon(icon), title: 
+Text(title),subtitle: Text(value ?? 'N/A'), 
+ ); 
+ } 
+ Widget _errorState() { 
+return Center(child: Text("Error fetching user profile."), 
+ ); 
+ } 
+ void _logoutUser() async { 
+ await FirebaseAuth.instance.signOut(); 
+Navigator.of(context).pushReplacement( 
+ MaterialPageRoute(builder: (context) => LoginPage()), 
+ ); 
+ } 
+} 
+import 'package:basirah/home_page.dart'; 
+import 'package:basirah/main.dart'; 
+import 
+'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:flutter/material.dart'; import 
+'package:flutter_svg/svg.dart'; import 
+'BlindApp/BlindMain.dart'; 
+import 'SignUpPage.dart'; // Ensure this path is correct for your 
+SignUpPage 
+class LoginPage extends StatefulWidget { 
+ @override 
+ _LoginPageState createState() => _LoginPageState(); 
+} 
+class _LoginPageState extends State<LoginPage> { 
+ final TextEditingController _emailController = TextEditingController(); 
+ final TextEditingController _passwordController = 
+TextEditingController(); 
+ @override 
+ Widget build(BuildContext context) 
+{ return Scaffold( body: 
+Container( 
+ padding: EdgeInsets.symmetric(horizontal: 
+24.0), decoration: BoxDecoration( 
+gradient: LinearGradient( begin: 
+Alignment.topRight, end: 
+Alignment.bottomLeft, 
+ colors: [Colors.blueAccent.shade200, Colors.blue.shade50], 
+ ), 
+), 
+ child: Column( 
+ mainAxisAlignment: MainAxisAlignment.center, 
+crossAxisAlignment: CrossAxisAlignment.stretch, 
+children: <Widget>[ Flexible( 
+ child: Image.asset('assets/logo.png', 
+ height: 250), // Replace with your logo asset 
+), 
+ SizedBox(height: 48.0),_buildTextField( 
+ controller: _emailController,hintText: 'Enter your email', 
+icon: Icons.email, 
+ ), 
+ SizedBox(height: 8.0), 
+ _buildTextField( 
+controller: _passwordController,hintText: 'Enter your 
+password', icon: Icons.lock, 
+isObscure: true, 
+ ), 
+ SizedBox(height: 24.0), 
+ ElevatedButton( 
+ onPressed: _attemptLogin, 
+child: Text('Login'), 
+ style: ElevatedButton.styleFrom( 
+primary: Color(0xFF00A1E4), 
+shape: StadiumBorder(), 
+ padding: EdgeInsets.symmetric(vertical: 16.0), 
+ ), 
+ ), 
+ TextButton( 
+onPressed: () { 
+ // TODO: Navigate to forgot password screen 
+ }, 
+child: Row( 
+ mainAxisAlignment: MainAxisAlignment.center, 
+children: [ 
+ Text("Don't have an 
+account?"), TextButton( 
+onPressed: () { 
+ Navigator.of(context).push(MaterialPageRoute( 
+builder: (context) => SignUpPage())); 
+ }, 
+child: Text( 
+'Sign up', 
+ style: TextStyle(color: Color(0xFF00A1E4)), 
+ ), 
+ ), 
+ ], 
+ ), 
+ ), 
+ ], 
+ ), 
+ ), 
+ ); 
+ } 
+ Widget _buildTextField({ 
+ required TextEditingController 
+controller, required String hintText, 
+required IconData icon, bool isObscure = 
+false, 
+ }) { 
+ return Container( 
+ decoration: 
+BoxDecoration(boxShadow: [ 
+BoxShadow( 
+ color: 
+Colors.blueAccent.shade100.withOpacity(0.5), 
+spreadRadius: 1, blurRadius: 5, 
+ offset: Offset(0, 3), // changes position of shadow), 
+], 
+ borderRadius: BorderRadius.circular(30.0),), 
+ child: TextField( 
+controller: controller, 
+obscureText: isObscure, 
+cursorColor: Color(0xFF00A1E4), 
+ style: TextStyle(color: Colors.black, fontSize: 
+16.0), decoration: InputDecoration( filled: 
+true, 
+ fillColor: Colors.white, 
+hintText: hintText, 
+ hintStyle: TextStyle(color: 
+Colors.grey.shade500), contentPadding: 
+EdgeInsets.symmetric( vertical: 20.0, 
+horizontal: 25.0), border: OutlineInputBorder( 
+ borderRadius: BorderRadius.all(Radius.circular(30.0)), 
+borderSide: BorderSide.none, 
+ ), 
+ prefixIcon: Icon(icon, color: Color(0xFF00A1E4)), 
+enabledBorder: OutlineInputBorder( 
+ borderRadius: BorderRadius.all(Radius.circular(30.0)), 
+borderSide: BorderSide(color: Colors.blueAccent.shade100, width: 1), 
+), 
+ focusedBorder: OutlineInputBorder( 
+ borderRadius: BorderRadius.all(Radius.circular(30.0)), 
+borderSide: BorderSide(color: Color(0xFF00A1E4), width: 2), 
+ ), 
+ ), 
+ ), 
+ ); 
+ } 
+ void _attemptLogin() async { 
+ final email = _emailController.text.trim(); 
+final password = _passwordController.text.trim(); 
+ if (email.isNotEmpty && password.isNotEmpty) { 
+try { 
+ final userCredential = await FirebaseAuth.instance 
+ .signInWithEmailAndPassword(email: email, password: password); 
+ // Assuming that you store the 'uniqueId' in the Firestore user 
+document, 
+ // you can retrieve it using the Firebase Auth UID. 
+final firebaseAuthUID = userCredential.user!.uid; 
+ final doc = await FirebaseFirestore.instance.collection('users') 
+ .where('authUID', isEqualTo: 
+firebaseAuthUID) .limit(1) 
+.get(); 
+ final uniqueUserId = 
+doc.docs.first.data()['uniqueId']; final userType = 
+doc.docs.first.data()['userType']; 
+ // Use 'uniqueUserId' as needed throughout your app. 
+ // For now, we'll just print it out. 
+print('Unique User ID: $uniqueUserId'); 
+ // Navigate based on user typeif (userType == 'Blind') { 
+Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => BasirahBlindVersion())); 
+} else { 
+ Navigator.of(context).pushReplacement( 
+ MaterialPageRoute(builder: (_) => Basirah())); 
+ } 
+ } on FirebaseAuthException catch (e) { 
+ ScaffoldMessenger.of(context).showSnackBar( 
+ SnackBar(content: Text('Login failed: ${e.message}')), 
+ ); 
+ } 
+ } else { 
+ ScaffoldMessenger.of(context).showSnackBar( 
+ SnackBar(content: Text("Email and Password cannot be empty")), 
+ ); 
+ } 
+ } 
+} 
+import 'dart:math'; 
+import 'package:flutter/material.dart'; 
+import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'LoginPage.dart'; // Make sure this is correctly imported 
+class SignUpPage extends StatefulWidget { 
+ @override 
+ _SignUpPageState createState() => _SignUpPageState(); 
+} 
+class _SignUpPageState extends State<SignUpPage> { 
+final _formKey = GlobalKey<FormState>(); 
+ final TextEditingController _nameController = TextEditingController(); 
+DateTime _selectedDate = DateTime.now(); 
+ final TextEditingController _mobileController = TextEditingController(); 
+final TextEditingController _emailController = TextEditingController(); 
+ final TextEditingController _passwordController = 
+TextEditingController(); 
+ final TextEditingController _confirmPasswordController = 
+TextEditingController(); 
+ final TextEditingController _blindUserIdController = 
+TextEditingController(); 
+ String? _gender; 
+String? _userType; 
+ Future<String> _generateUniqueUserId() async 
+{ final Random random = Random(); 
+String uniqueUserId; bool exists = false; 
+do { 
+ final int randomNumber = random.nextInt(100000000 - 10000) + 
+10000; uniqueUserId = "$randomNumber"; final existingUserDoc 
+= await 
+FirebaseFirestore.instance.collection('users').doc(uniqueUserId).get(); 
+exists = existingUserDoc.exists; 
+ } while (exists); 
+return uniqueUserId; }
+void _signup() async {if (_formKey.currentState!.validate()) { 
+try {UserCredential userCredential = await 
+FirebaseAuth.instance.createUserWithEmailAndPassword( 
+email: _emailController.text.trim(), password: 
+_passwordController.text.trim(), 
+ ); 
+ if (userCredential.user != null) { 
+ final uniqueUserId = await _generateUniqueUserId(); 
+final firebaseAuthUID = userCredential.user!.uid; 
+ Map<String, dynamic> commonUserData = { 
+ 'authUID': firebaseAuthUID, 
+ 'uniqueId': uniqueUserId, 
+ 'name': _nameController.text.trim(), 
+ 'dob': _selectedDate.toString(), 
+ 'gender': _gender, 
+ 'userType': _userType, 
+ 'mobile': _mobileController.text.trim(), 
+'email': _emailController.text.trim(), 
+ }; 
+ if (_userType == 'Accompanying' 
+&& _blindUserIdController.text.isNotEmpty) { 
+final blindUserDoc = await 
+FirebaseFirestore.instance.collection('users').doc(_blindUserIdController.t 
+ext).get(); 
+ if (!blindUserDoc.exists) { 
+ 
+ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Blind 
+user ID does not exist."))); return; 
+ } 
+await 
+FirebaseFirestore.instance.collection('users').doc(uniqueUserId).set(common 
+UserData); await 
+FirebaseFirestore.instance.collection('AccompanyingBlind').doc(uniqueUserId 
+).set({ 
+ ...commonUserData, 
+ 'blindUserId': _blindUserIdController.text, 
+ }); 
+} else { 
+await 
+FirebaseFirestore.instance.collection('users').doc(uniqueUserId).set(common
+UserData); 
+ } 
+ Navigator.of(context).pushReplacement(MaterialPageRoute(builder: 
+(_) => LoginPage())); 
+ } else { 
+ ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: 
+Text("Authentication failed after sign up."))); 
+ } 
+ } catch (e) { 
+ ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: 
+Text(e.toString()))); 
+ } 
+ } 
+ } 
+Widget _buildTextField({ 
+ required TextEditingController controller,required String hintText, 
+required IconData icon, bool 
+isObscure = false, }) { 
+ return Container( 
+ decoration: 
+BoxDecoration( 
+boxShadow: [ 
+BoxShadow( 
+ color: 
+Colors.blueAccent.shade100.withOpacity(0.5), 
+spreadRadius: 1, blurRadius: 5, 
+offset: Offset(0, 3), 
+ ), 
+], 
+ borderRadius: BorderRadius.circular(30.0), 
+ ), 
+ child: TextField( 
+controller: controller, 
+obscureText: isObscure, 
+cursorColor: Color(0xFF00A1E4), 
+ style: TextStyle(color: Colors.black, fontSize: 
+16.0), decoration: InputDecoration( filled: 
+true, 
+ fillColor: Colors.white, 
+hintText: hintText, 
+ hintStyle: TextStyle(color: Colors.grey.shade500), 
+contentPadding: EdgeInsets.symmetric(vertical: 20.0), 
+border: OutlineInputBorder( 
+ borderRadius: BorderRadius.all(Radius.circular(30.0)), 
+borderSide: BorderSide.none, 
+ ), 
+ prefixIcon: Icon(icon, color: Color(0xFF00A1E4)), 
+enabledBorder: OutlineInputBorder( 
+ borderRadius: BorderRadius.all(Radius.circular(30.0)), 
+borderSide: BorderSide(color: Colors.blueAccent.shade100, width: 1), 
+), 
+ focusedBorder: OutlineInputBorder( 
+ borderRadius: BorderRadius.all(Radius.circular(30.0)), 
+borderSide: BorderSide(color: Color(0xFF00A1E4), width: 2), 
+ ), 
+ ), 
+ ), 
+ ); 
+ } 
+ @override 
+ Widget build(BuildContext context) { 
+return Scaffold( 
+ body: SingleChildScrollView( 
+child: Container( 
+ padding: EdgeInsets.symmetric(horizontal: 
+24.0), child: Form( key: _formKey, 
+child: Center( child: ConstrainedBox( 
+ constraints: BoxConstraints(maxWidth: 600), 
+child: Padding( 
+ padding: const EdgeInsets.all(36.0), 
+child: Column( 
+ mainAxisAlignment: MainAxisAlignment.center, 
+ crossAxisAlignment: CrossAxisAlignment.stretch,children: <Widget>[ 
+_buildTextField( 
+ controller: _nameController, 
+hintText: 'Enter your full name', 
+icon: Icons.person, 
+ ), 
+_buildDatePicker(context), 
+_buildGenderDropdown(), 
+_buildUserTypeDropdown(), 
+_buildBlindUserIdField(), 
+_buildTextField( 
+ controller: _mobileController, 
+hintText: 'Enter your mobile number', 
+icon: Icons.phone_android, 
+ ), 
+_buildTextField( 
+ controller: _emailController, 
+hintText: 'Enter your email address', 
+icon: Icons.email, 
+ ), 
+_buildTextField( 
+ controller: 
+_passwordController, hintText: 
+'Create a password', icon: 
+Icons.lock, isObscure: true, 
+ ), 
+_buildTextField( 
+ controller: 
+_confirmPasswordController, hintText: 
+'Confirm your password', icon: 
+Icons.lock_outline, isObscure: true, 
+ ), 
+SizedBox(height: 24.0), 
+ElevatedButton( onPressed: 
+_signup, child: Text('Sign 
+Up'), style: 
+ElevatedButton.styleFrom( 
+primary: Color(0xFF00A1E4), 
+shape: StadiumBorder(), 
+ padding: EdgeInsets.symmetric(vertical: 16.0), 
+ ), 
+ ), 
+Row( 
+ mainAxisAlignment: MainAxisAlignment.center, 
+children: [ 
+ Text("Already have an account? 
+"), TextButton( 
+onPressed: () { 
+ 
+Navigator.of(context).push(MaterialPageRoute(builder: (context) => 
+LoginPage())); 
+ }, child: 
+Text('Login', style: TextStyle(color: 
+Color(0xFF00A1E4))), 
+ ), 
+ ], 
+), 
+ ], 
+ ), 
+ ),), 
+ ), 
+ ),), 
+ ), 
+ ); 
+ } 
+ Widget _buildDatePicker(BuildContext context) 
+{ return GestureDetector( onTap: () { 
+showDatePicker( context: context, 
+ initialDate: DateTime.now(), 
+firstDate: DateTime(1900), 
+lastDate: DateTime.now(), 
+ ).then((pickedDate) { 
+if (pickedDate != null) { 
+setState(() { 
+ _selectedDate = pickedDate; 
+ }); 
+ } 
+ }); 
+}, 
+ child: Container( 
+ margin: EdgeInsets.only(bottom: 16.0), 
+padding: EdgeInsets.symmetric(vertical: 20.0), 
+decoration: BoxDecoration( color: 
+Colors.white, 
+ borderRadius: 
+BorderRadius.circular(32.0), boxShadow: [ 
+BoxShadow( 
+ color: 
+Colors.blueAccent.shade100.withOpacity(0.5), 
+spreadRadius: 1, blurRadius: 6, 
+offset: Offset(0, 3), 
+ ), 
+ ], 
+), child: 
+Row( 
+children: [ 
+ Icon(Icons.calendar_today, color: Color(0xFF00A1E4)), 
+ SizedBox(width: 16), 
+ Text('${_selectedDate.toLocal()}'.split(' ')[0], style: 
+TextStyle(color: Colors.black54)), 
+ ], 
+ ), 
+ ), 
+ ); 
+ } 
+ Widget _buildGenderDropdown() { 
+return Container( 
+ margin: EdgeInsets.only(bottom: 16.0), 
+padding: EdgeInsets.symmetric(horizontal: 25.0), 
+decoration: BoxDecoration( color: Colors.white, 
+ borderRadius: 
+BorderRadius.circular(32.0), boxShadow: [ 
+BoxShadow( 
+ color: Colors.blueAccent.shade100.withOpacity(0.5), 
+spreadRadius: 1, 
+blurRadius: 6, offset: 
+Offset(0, 3),), 
+ ], 
+), 
+ child: DropdownButtonFormField<String>( 
+ decoration: InputDecoration(border: 
+InputBorder.none), value: _gender, // Make sure this 
+starts as null hint: Text('Gender'), // Hint text 
+onChanged: (String? newValue) { setState(() { 
+ _gender = newValue; 
+ }); 
+}, 
+ items: <String>['Male', 'Female'].map<DropdownMenuItem<String>>((String 
+value) { 
+ return 
+DropdownMenuItem<String>( 
+value: value, child: 
+Text(value), 
+ ); 
+ }).toList(), 
+ ), 
+ ); 
+ } 
+ Widget _buildUserTypeDropdown() { 
+return Container( 
+ margin: EdgeInsets.only(bottom: 16.0), 
+padding: EdgeInsets.symmetric(horizontal: 25.0), 
+decoration: BoxDecoration( color: 
+Colors.white, 
+ borderRadius: 
+BorderRadius.circular(32.0), boxShadow: [ 
+BoxShadow( 
+ color: 
+Colors.blueAccent.shade100.withOpacity(0.5), 
+spreadRadius: 1, blurRadius: 6, 
+offset: Offset(0, 3), 
+ ), 
+ ], 
+), 
+ child: DropdownButtonFormField<String>( 
+ decoration: InputDecoration(border: 
+InputBorder.none), value: _userType, // Make sure 
+this starts as null hint: Text('User Type'), // Hint 
+text onChanged: (String? newValue) { 
+setState(() { 
+ _userType = newValue; 
+ }); 
+}, 
+ items: <String>['Blind', 
+'Accompanying'].map<DropdownMenuItem<String>>((String value) 
+{ return DropdownMenuItem<String>( 
+value: value, child: Text(value), 
+ ); 
+ }).toList(), 
+ ), 
+ ); 
+ } 
+Widget _buildBlindUserIdField() { 
+ return _userType == 'Accompanying' ? _buildTextField( 
+ controller: _blindUserIdController, 
+hintText: 'Enter Blind User ID', icon: 
+Icons.visibility_off, 
+ ) : Container(); 
+ } 
+}
