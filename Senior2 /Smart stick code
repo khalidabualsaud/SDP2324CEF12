@@ -1,0 +1,42 @@
+
+include <SoftwareSerial.h> #include 
+<NewPing.h>
+#define NUM_SENSORS 4 
+#define MAX_DISTANCE 200 
+#define OBSTACLE_THRESHOLD 30 // Obstacle closer than 30cm 
+const int triggerPins[NUM_SENSORS]; }8 ,6 ,4 ,2{ = const int 
+echoPins[NUM_SENSORS]; }9 ,7 ,5 ,3{ = const int buzzerPin = 12; 
+NewPing sonar[NUM_SENSORS]{ = 
+ NewPing(triggerPins[0], echoPins[0], MAX_DISTANCE) ,
+ NewPing(triggerPins[1], echoPins[1], MAX_DISTANCE) ,
+ NewPing(triggerPins[2], echoPins[2], MAX_DISTANCE) ,
+ NewPing(triggerPins[3], echoPins[3], MAX_DISTANCE) 
+; }
+SoftwareSerial bluetoothSerial(10, 11); // RX, TX 
+void setup{ )( Serial.begin; )9600( 
+bluetoothSerial.begin; )9600( 
+pinMode(buzzerPin, OUTPUT); for (int i = 0; i < 
+NUM_SENSORS; i++){ pinMode(triggerPins[i], 
+OUTPUT); pinMode(echoPins[i], INPUT); 
+} 
+}
+void loop{ )( for (int i = 0; i < NUM_SENSORS; i++){ 
+delay; )50( unsigned int distance = sonar[i].ping_cm; )( 
+if (distance > 0 && distance <= OBSTACLE_THRESHOLD){ // 
+95
+Send a message and buzz if there's an obstacle 
+bluetoothSerial.print("Obstacle detected by Sensor "); 
+bluetoothSerial.print(i + 1); 
+bluetoothSerial.println;)"!"( tone(buzzerPin, 1000, 
+200); // 1kHz tone for 200ms delay; )200(
+} else{ 
+// Send normal distance information 
+bluetoothSerial.print("Sensor "); 
+bluetoothSerial.print(i + 1); 
+bluetoothSerial.print;)" :"( 
+bluetoothSerial.print(distance); 
+bluetoothSerial.println("cm"); 
+} 
+} 
+ delay; )100(
+} 
